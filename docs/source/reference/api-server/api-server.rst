@@ -1,12 +1,13 @@
 .. _sky-api-server:
 
-SkyPilot API Server
-==============================
+API Server Deployment
+=====================
 
-SkyPilot implements a client-server architecture. When a user runs a command or an API call,
-a SkyPilot client issues asynchronous requests to a SkyPilot API server, which
+SkyPilot implements a client-server architecture. When a user runs a command or invokes a SDK,
+a SkyPilot client submits :ref:`asynchronous requests <async>` to a **SkyPilot API server**, which
 handles all requests.
 
+.. _sky-api-server-local:
 
 Local API server (individual users)
 -------------------------------------
@@ -15,23 +16,28 @@ For an individual user, SkyPilot can be used as a normal command line
 tool. Whenever a SkyPilot command is run and an API server is not detected, SkyPilot will automatically start
 a SkyPilot API server running locally in the background. No user action is needed.
 
+The dashboard is hosted at `http://127.0.0.1:46580/dashboard <http://127.0.0.1:46580/dashboard>`__ by default.
+
 .. image:: ../../images/client-server/local.png
     :alt: SkyPilot API server local mode
     :align: center
     :width: 40%
 
 
-Remote API server (multi-user organizations)
---------------------------------------------
+.. _sky-api-server-remote:
 
-For multi-user organizations, SkyPilot can be deployed as a remote
+Remote API server (multi-user teams)
+------------------------------------
+
+For multi-user teams, SkyPilot can be deployed as a remote
 service. Multiple users in an organization can share the same
-SkyPilot API server, so that users can:
+SkyPilot API server. The benefits include:
 
-1. Have a global view of all clusters, jobs, and services across users.
-2. Manage and collaborate on clusters and jobs.
-3. Interact with the same state from any new device.
-
+- **Deploy once & onboard seamlessly**: Set up one SkyPilot API server (in the cloud or on Kubernetes), and team members can onboard with a single endpoint.
+- **Multi-tenancy**: Share clusters, jobs, and services securely among teammates.
+- **Unified view and management**: Get a single view of all running clusters and jobs across the organization and all infra you have.
+- **Fault-tolerant and cloud-native**: SkyPilot API server deployment is cloud-native and fully fault-tolerant, eliminating the risk of workload loss.
+- **Integrate with workflow orchestrators**: Schedule workflows with orchestrators (like Airflow or Temporal), and let SkyPilot manage your diverse infrastructure.
 
 .. image:: ../../images/client-server/remote.png
     :alt: SkyPilot API server remote mode
@@ -39,8 +45,8 @@ SkyPilot API server, so that users can:
     :width: 50%
 
 
-Getting Started with Remote API Server
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Getting started with a remote API server
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. grid:: 1 1 2 2
     :gutter: 2
@@ -62,12 +68,11 @@ Getting Started with Remote API Server
 
 .. _sky-api-server-connect:
 
-Connecting to Remote API Server
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Connecting to an API server
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Once you have :ref:`deployed <sky-api-server-deploy>` the API server, you can configure your local SkyPilot
 to connect to it.
-
 We recommend using a Python 3.9 or 3.10 environment for the SkyPilot client. See `uv <https://docs.astral.sh/uv/>`_ or `conda <https://docs.conda.io/en/latest/>`_ for creating an environment with different python versions.
 
 :ref:`Install <installation>` the SkyPilot client on your local machine:
@@ -90,7 +95,9 @@ To verify that the API server is working, run ``sky api info``:
 .. code-block:: console
 
     $ sky api info
-    Using SkyPilot API server: http://skypilot:password@1.2.3.4:30050 (version: 1.0.0-dev0, commit: 6864695)
+    Using SkyPilot API server: http://127.0.0.1:46580 Dashboard: http://127.0.0.1:46580/dashboard
+    ├── Status: healthy, commit: xxxxx, version: 1.0.0-dev0
+    └── User: skypilot-user (xxxxxx)
 
 
 .. tip::
@@ -101,134 +108,40 @@ To verify that the API server is working, run ``sky api info``:
 
         $ export SKYPILOT_API_SERVER_ENDPOINT=http://skypilot:password@myendpoint.com:30050
         $ sky api info
-        Using SkyPilot API server: http://skypilot:password@myendpoint.com:30050 (version: 1.0.0-dev0, commit: 6864695)
-
-Asynchronous request execution
-------------------------------
-
-All SkyPilot client calls (commands or API calls) are sent to the SkyPilot API
-server as asynchronous requests. The output of an request is streamed
-back to the local client.
-
-For example, when a user runs ``sky launch -c my-cluster``, the following output is streamed to the terminal:
-
-.. code-block:: console
-
-    $ sky launch -c my-cluster --cpus 2
-    Considered resources (1 node):
-    ---------------------------------------------------------------------------------------------
-    CLOUD        INSTANCE    vCPUs   Mem(GB)   ACCELERATORS   REGION/ZONE   COST ($)   CHOSEN
-    ---------------------------------------------------------------------------------------------
-    Kubernetes   2CPU--2GB   2       2         -              in-cluster    0.00          ✔
-    AWS          m6i.large   2       8         -              us-east-1     0.10
-    ---------------------------------------------------------------------------------------------
-    Launching a new cluster 'my-cluster'. Proceed? [Y/n]:
-    ⚙︎ Launching on Kubernetes.
-    └── Pod is up.
-    ⠴ Preparing SkyPilot runtime (2/3 - dependencies)  View logs: sky api logs -l sky-2024-12-13-05-27-22-754475/provision.log
-
-
-When a user interrupts the command with ``Ctrl+C``, the request will continue
-running in the background on the server. The user can reattach to the logs of
-the request with ``sky api logs``, or cancel the request with ``sky api cancel``.
-
-.. code-block:: console
-
-    $ sky launch -c my-cluster --cpus 2
-    ...
-    ^C
-    ⚙︎ Request will continue running asynchronously.
-    ├── View logs: sky api logs f059d660-29c5-4f22-bd13-ee5d62d974c7
-    ├── Or, visit: http://xx.xx.xx.xx:30050/stream?request_id=f059d660-29c5-4f22-bd13-ee5d62d974c7
-    └── To abort the request, run: sky api cancel f059d660-29c5-4f22-bd13-ee5d62d974c7
-
-
-As a special case, terminating (``sky down my-cluster``) or stopping (``sky stop my-cluster``) a cluster will automatically cancel all existing requests on the cluster, including both ``PENDING`` and ``RUNNING`` requests.
-
-.. note::
-
-    Currently, ``sky jobs cancel`` and ``sky serve down`` do not abort other requests.
-
-API server cheatsheet
-----------------------
-
-Below are some common commands and usage patterns to interact with the API server.
-See :ref:`sky-api-cli` for more details.
-
-
-List all requests
-^^^^^^^^^^^^^^^^^
-
-To view all requests on the server, run ``sky api status``.
-
-.. code-block:: console
-
-    $ # List all ongoing requests
-    $ sky api status
-    ID                                    User             Name    Created         Status
-    0d35ffa7-2813-4f3b-95c2-c5ab2238df50  user2            logs    a few secs ago  RUNNING
-    a9d59602-b82b-4cf8-a10f-5cde4dd76f29  user1            launch  a few secs ago  RUNNING
-    skypilot-status-refresh-daemon        skypilot-system  status  5 hrs ago       RUNNING
-
-    $ # List all finished and ongoing requests
-    $ sky api status -a
-
-
-Get API server URL and version
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To get the current API server info (URL and version), run ``sky api info``.
-
-.. code-block:: console
-
-    $ sky api info
-    Using SkyPilot API server: http://skypilot:alpha1@1.2.3.4:30050 (version: 1.0.0-dev0, commit: 6864695)
-
-
-Stop and restart local API server
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To stop the local API server, run ``sky api stop``.
-To restart the local API server, run any SkyPilot command.
-
-.. code-block:: console
-
-    $ # Stop the local API server
-    $ sky api stop
-    $ # Any subsequent SkyPilot command will restart the local API server.
-
-Sharing a SkyServe controller among multiple users
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Each request to the API server is associated with a user, identified by a hash generated by SkyPilot. By default, SkyPilot API server will create a new SkyServe controller for each user. 
-
-To have all users share the same SkyServe controller, set the ``SKYPILOT_USER_ID`` and ``SKYPILOT_USER`` environment variables to the same value for all users. 
-
-.. code-block:: console
-
-    $ # On all users' machines, set SKYPILOT_USER_ID and SKYPILOT_USER to the same value.
-    $ export SKYPILOT_USER_ID=2ea485ea
-    $ export SKYPILOT_USER=myuser
-    $ # Use SkyServe as usual, all users will share the same SkyServe controller assigned to myuser.
-    $ sky serve status
-
-This overrides the default user hash generation, and makes the API server use the same SkyServe controller for all users.
-
-.. tip::
-
-    SkyPilot generated user hash is stored in ``~/.sky/user_hash``. If you want to share your SkyServe controller with other users, ask them to set ``SKYPILOT_USER_ID=<your-user-hash>`` and ``SKYPILOT_USER=<your-unix-username>`` in their environment.
-
-    You can fetch these values by running:
-
-    .. code-block:: console
-
-        $ # User hash
-        $ cat ~/.sky/user_hash
-        $ # User name
-        $ whoami
+        Using SkyPilot API server: http://myendpoint.com:30050 Dashboard: http://myendpoint.com:30050/dashboard
+        ├── Status: healthy, commit: xxxxx, version: 1.0.0-dev0
+        └── User: skypilot-user (xxxxxx)
 
 
 .. toctree::
    :hidden:
 
    Deploying API Server <api-server-admin-deploy>
+   Upgrading API Server <api-server-upgrade>
+   Performance Best Practices <api-server-tunning>
+   Troubleshooting <api-server-troubleshooting>
+   Helm Chart Reference <helm-values-spec>
+
+By default, each user connected to the API server will only see their own resources.
+
+
+To see other users' clusters and the job/serve controllers, use the ``-u`` flag.
+
+.. code-block:: console
+    :emphasize-lines: 5,7,14
+
+    $ sky status -u
+    Clusters
+    NAME                          USER        LAUNCHED      INFRA                 RESOURCES                                  STATUS   AUTOSTOP
+    my-cluster-2                  my-user     2 hrs ago     GCP (us-central1-a)   1x(cpus=8, mem=32, n2-standard-8, ...)     STOPPED  -
+    other-cluster                 other-user  1 week ago    AWS (us-east-1)       1x(cpus=64, mem=256, m6i.16xlarge, ...)    UP       -
+    my-cluster-1                  my-user     2 months ago  AWS (us-east-1)       1x(cpus=16, mem=64, m6i.4xlarge, ...)      STOPPED  -
+    sky-jobs-controller-7c3d4ff7  root        2 days ago    AWS (us-east-1)       1x(cpus=4, mem=32, r6i.xlarge, ...)        STOPPED  10m
+
+    $ sky jobs queue -u
+    Fetching managed job statuses...
+    Managed jobs
+    ID  TASK  NAME       USER        REQUESTED  SUBMITTED   TOT. DURATION  JOB DURATION  #RECOVERIES  STATUS
+    3   -     job-2      my-user     1x[CPU:2]  2 days ago  2m 10s         1m 14s        0            CANCELLED
+    2   -     other-job  other-user  1x[CPU:2]  2 days ago  11m 54s        10m 52s       0            CANCELLED
+    1   -     job-1      my-use      1x[CPU:2]  5 days ago  1m 7s          3s            0            SUCCEEDED

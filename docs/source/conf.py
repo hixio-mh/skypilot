@@ -8,12 +8,12 @@ sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('../'))
 sys.path.insert(0, os.path.abspath('../../'))
 
-import prepare_github_markdown
+import generate_examples
 
 # -- Project information
 
 project = 'SkyPilot'
-copyright = '2024, SkyPilot Team'
+copyright = '2025, SkyPilot Team'
 author = 'the SkyPilot authors'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -37,11 +37,21 @@ extensions = [
     'sphinx_autodoc_typehints',
     'sphinx_click',
     'sphinx_copybutton',
+    "sphinx_togglebutton",  # Used for collapsible sections in examples.
     'sphinxcontrib.googleanalytics',
     'sphinxemoji.sphinxemoji',
     'sphinx_design',
     'myst_parser',
     'notfound.extension',
+    'sphinx.ext.autosectionlabel',
+    'extension.linting',
+]
+# Needed for admonitions in markdown:
+# https://myst-parser.readthedocs.io/en/latest/syntax/admonitions.html
+myst_enable_extensions = [
+    "colon_fence",
+    # Converts http links to clickable links in HTML output.
+    "linkify",
 ]
 
 intersphinx_mapping = {
@@ -107,7 +117,7 @@ html_theme_options = {
         'icon': 'fab fa-github',
     }],
     'use_edit_page_button': True,
-    'announcement': None,
+    'announcement': '',  # Put announcements such as meetups here.
     'secondary_sidebar_items': [
         'page-toc',
         'edit-this-page',
@@ -167,12 +177,61 @@ html_css_files = ['custom.css']
 myst_heading_anchors = 7
 show_sphinx = False
 
-exclude_patterns = ['_gallery_original']
-myst_heading_anchors = 3
+exclude_patterns = [
+    '_gallery_original',
+    'generated-examples',
+]
+myst_url_schemes = {
+    'http': None,
+    'https': None,
+    'mailto': None,
+    'ftp': None,
+    'local': {
+        'url': '{{path}}',
+        'title': '{{path}}',
+    },
+    'gh-issue': {
+        'url': 'https://github.com/skypilot-org/skypilot/issues/{{path}}#{{fragment}}',
+        'title': 'Issue #{{path}}',
+        'classes': ['github'],
+    },
+    'gh-pr': {
+        'url': 'https://github.com/skypilot-org/skypilot/pull/{{path}}#{{fragment}}',
+        'title': 'Pull Request #{{path}}',
+        'classes': ['github'],
+    },
+    'gh-dir': {
+        'url': 'https://github.com/skypilot-org/skypilot/tree/master/{{path}}',
+        'title': '{{path}}',
+        'classes': ['github'],
+    },
+    'gh-file': {
+        'url': 'https://github.com/skypilot-org/skypilot/blob/master/{{path}}',
+        'title': '{{path}}',
+        'classes': ['github'],
+    },
+}
 
 googleanalytics_id = 'G-92WF3MDCJV'
 
+autosectionlabel_prefix_document = True
+
+suppress_warnings = ['autosectionlabel.*']
+
+# Adapted from vllm-project/vllm
+# see https://docs.readthedocs.io/en/stable/reference/environment-variables.html # noqa
+READTHEDOCS_VERSION_TYPE = os.environ.get('READTHEDOCS_VERSION_TYPE')
+if READTHEDOCS_VERSION_TYPE == "tag":
+    # remove the warning banner if the version is a tagged release
+    header_file = os.path.join(os.path.dirname(__file__),
+                               "_templates/header.html")
+    # The file might be removed already if the build is triggered multiple times
+    # (readthedocs build both HTML and PDF versions separately)
+    if os.path.exists(header_file):
+        os.remove(header_file)
+
 
 def setup(app):
-    app.connect('builder-inited',
-                prepare_github_markdown.handle_markdown_in_gallery)
+    # Run generate_examples directly during setup instead of connecting to builder-inited
+    # This ensures it completes fully before any build steps start
+    generate_examples.generate_examples(app)
